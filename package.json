@@ -1,6 +1,6 @@
 {
   "name": "@1001-digital/diamonds",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "ERC-2535 Diamond inspection primitives. Detect facets, decode the loupe, build composite ABIs.",
   "license": "MIT",
   "repository": {
