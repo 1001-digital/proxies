@@ -29,7 +29,7 @@ Note: the directory is still named `diamonds/` but the package is now `@1001-dig
 
 - Vite build step — outputs JS + `.d.ts` to `dist/`, source TS published alongside for editor navigation
 - Factory pattern — `createProxies(config?)` returns a `ProxiesClient` with `detect`, `fetch`
-- Pure functions — all decoders, selector math, and ABI/NatSpec utilities are stateless and exported directly
+- Pure functions — all decoders, selector math, and ABI utilities are stateless and exported directly
 - **Uniform pipeline** — `detectProxy → enrichTargets → compose`. A diamond is N targets with selector scopes; every other pattern is 1 target with `selectors: undefined` (meaning "all selectors").
 - **Narrow scope** — the package composes ABIs; it takes no opinion on richer per-target metadata shapes (documentation formats, sources, verification status, …). Consumers wanting those use `detect()` and own the enrichment step.
 - Dependency injection for enrichment — the caller supplies a `TargetEnricher` (Sourcify, Etherscan, local files, nothing); the package just threads it through
