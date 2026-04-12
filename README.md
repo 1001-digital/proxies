@@ -132,8 +132,8 @@ Creates a diamonds client.
 
 **Returns** a `DiamondsClient` with:
 
-- **`detect(rpc, address)`** — `null | RawFacet[]`. On-chain probe only.
-- **`fetch(rpc, address, options?)`** — `null | Diamond`. Detect, enrich, and compose.
+- **`detect(rpc, address)`** — `Promise<RawFacet[] | null>`. On-chain probe only.
+- **`fetch(rpc, address, options?)`** — `Promise<Diamond | null>`. Detect, enrich, and compose.
   - `options.enrich` — per-call enricher (overrides config-level)
   - `options.enrich = false` — skip enrichment for this call
 
@@ -192,12 +192,16 @@ on malformed input.
 }
 ```
 
+### `FacetEnrichment`
+
+```ts
+{ abi?: unknown[] }
+```
+
 ### `FacetEnricher`
 
 ```ts
-type FacetEnricher = (address: string) => Promise<{
-  abi?: unknown[]
-} | null>
+type FacetEnricher = (address: string) => Promise<FacetEnrichment | null>
 ```
 
 ## Design notes
