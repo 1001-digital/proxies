@@ -72,7 +72,6 @@ export { detectEip897 } from './patterns/eip897'
 
 export { enrichTargets } from './enrich'
 export { filterAbiBySelectors, buildCompositeAbi } from './abi'
-export { mergeNatspecDocs } from './natspec'
 
 // ── Utilities ──
 

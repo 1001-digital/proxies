@@ -19,7 +19,6 @@ Note: the directory is still named `diamonds/` but the package is now `@1001-dig
 - `src/selector.ts` — Pure: `computeSelector`, `canonicalSignature`
 - `src/decode.ts` — Pure: `decodeFacets` (loupe return decoder), `parseBool` (internal)
 - `src/abi.ts` — Pure: `filterAbiBySelectors`, `buildCompositeAbi`
-- `src/natspec.ts` — Pure: `mergeNatspecDocs`
 - `src/rpc.ts` — Minimal JSON-RPC helpers: `ethCall`, `ethGetStorageAt`, `ethGetCode`
 - `src/patterns/` — Per-pattern detectors, each returns `RawProxy | null`
 - `src/detect.ts` — `detectProxy` orchestrator (tries patterns in priority order)
@@ -47,7 +46,7 @@ Exported from `src/index.ts`:
 
 - Factory: `createProxies`
 - Detection: `detectProxy`, `detectDiamond`, `detectEip1967`, `detectEip1967Beacon`, `detectEip1822`, `detectEip1167`, `detectGnosisSafe`, `detectEip897`
-- Composition: `enrichTargets`, `buildCompositeAbi`, `mergeNatspecDocs`
+- Composition: `enrichTargets`, `buildCompositeAbi`
 - Utilities: `decodeFacets`, `computeSelector`, `canonicalSignature`, `filterAbiBySelectors`
 - RPC: `ethCall`, `ethGetStorageAt`, `ethGetCode`
 - Constants: `SUPPORTS_INTERFACE_SELECTOR`, `DIAMOND_LOUPE_INTERFACE_ID`, `FACETS_SELECTOR`, `IMPLEMENTATION_SELECTOR`, `EIP1967_IMPL_SLOT`, `EIP1967_BEACON_SLOT`, `EIP1967_ADMIN_SLOT`, `EIP1822_PROXIABLE_SLOT`, `EIP1167_BYTECODE_PREFIX`, `EIP1167_BYTECODE_SUFFIX`, `ZERO_ADDRESS`

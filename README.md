@@ -113,7 +113,6 @@ import {
   filterAbiBySelectors,
   buildCompositeAbi,
   enrichTargets,
-  mergeNatspecDocs,
 } from '@1001-digital/proxies'
 
 decodeFacets('0x…')                            // parse a facets() return value
@@ -158,7 +157,6 @@ Each detector returns `null` if the pattern doesn't match; otherwise a `RawProxy
 
 - **`enrichTargets(targets, enricher | null)`** — applies the enricher to each target; ABIs are filtered to live selectors for diamonds, passed through for plain proxies.
 - **`buildCompositeAbi(abis)`** — pure; dedupes functions/events/errors across ABIs (first-wins).
-- **`mergeNatspecDocs(...docs)`** — pure; shallow-merges NatSpec `userdoc` / `devdoc` across multiple targets.
 
 ### Utilities
 
