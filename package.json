@@ -1,0 +1,50 @@
+{
+  "name": "@1001-digital/diamonds",
+  "version": "0.1.0",
+  "description": "ERC-2535 Diamond inspection primitives. Detect facets, decode the loupe, build composite ABIs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/1001-digital/diamonds.git"
+  },
+  "keywords": [
+    "ethereum",
+    "erc-2535",
+    "diamond",
+    "loupe",
+    "facets",
+    "abi"
+  ],
+  "packageManager": "pnpm@10.33.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "changeset": "changeset"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.7.0"
+  },
+  "devDependencies": {
+    "@changesets/changelog-github": "^0.6.0",
+    "@changesets/cli": "^2.30.0",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.0.0",
+    "vitest": "^3.0.0"
+  }
+}
