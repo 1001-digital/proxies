@@ -3,9 +3,8 @@
 ERC-2535 Diamond inspection primitives for TypeScript — detect facets, decode the loupe, build composite ABIs.
 
 Narrow on purpose: this package knows ERC-2535, selectors, and ABIs.
-Documentation formats (NatSpec, OpenZeppelin annotations, …), verification
-sources, and anything else downstream are the consumer's concern — bring
-your own enricher.
+Anything richer — documentation, verification sources, per-facet metadata —
+is the consumer's concern. Bring your own enricher.
 
 ## Install
 
@@ -35,8 +34,8 @@ if (result) {
 
 ### Enrich with Sourcify (or anything else)
 
-The enricher returns each facet's ABI. Anything richer (NatSpec, sources,
-bytecode) should be done by the consumer — see *Detect and do your own
+The enricher returns each facet's ABI. Anything richer (sources, bytecode,
+documentation, …) is the consumer's concern — see *Detect and do your own
 enrichment* below.
 
 ```ts
@@ -66,9 +65,9 @@ if (result) {
 
 ### Detect and do your own enrichment
 
-For richer per-facet metadata (NatSpec, sources, verification status, …),
-use `detect` and own the enrichment step end-to-end. `filterAbiBySelectors`
-and `buildCompositeAbi` remain useful primitives.
+For richer per-facet metadata, use `detect` and own the enrichment step
+end-to-end. `filterAbiBySelectors` and `buildCompositeAbi` remain useful
+primitives.
 
 ```ts
 import {
@@ -87,8 +86,8 @@ if (raw) {
       address: rf.facetAddress,
       selectors: rf.functionSelectors,
       abi: src?.abi ? filterAbiBySelectors(src.abi, rf.functionSelectors) : undefined,
-      natspec: src ? { userdoc: src.userdoc, devdoc: src.devdoc } : undefined,
-      verified: src?.verified,
+      // …plus whatever else your source provides
+      metadata: src?.metadata,
     }
   }))
 

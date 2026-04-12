@@ -35,8 +35,8 @@ export interface RawFacet {
  * so one bad fetch does not fail the whole diamond.
  *
  * The package is intentionally narrow here: it only composes ABIs. For
- * richer per-facet metadata (NatSpec, verification status, sources, …) use
- * {@link DiamondsClient.detect} and enrich the raw facets yourself.
+ * richer per-facet metadata, use {@link DiamondsClient.detect} and enrich
+ * the raw facets yourself.
  */
 export type FacetEnricher = (address: string) => Promise<FacetEnrichment | null>
 

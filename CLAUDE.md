@@ -27,8 +27,8 @@ Diamonds SDK (`@1001-digital/diamonds`) — ERC-2535 Diamond inspection primitiv
 - Vite build step — outputs JS + `.d.ts` to `dist/`, source TS published alongside for editor navigation
 - Factory pattern — `createDiamonds(config?)` returns a `DiamondsClient` with `detect`, `fetch`
 - Pure functions — all decoders, selector math, and ABI utilities are stateless and exported directly
-- **Narrow scope** — the package composes ABIs; it takes no opinion on documentation formats (NatSpec, etc.) or richer per-facet metadata shapes. Consumers wanting those use `detect()` and own the enrichment step.
-- Dependency injection for enrichment — the caller supplies an `FacetEnricher` (Sourcify, Etherscan, local files, nothing); the package just threads it through
+- **Narrow scope** — the package composes ABIs; it takes no opinion on richer per-facet metadata shapes (documentation formats, sources, verification status, …). Consumers wanting those use `detect()` and own the enrichment step.
+- Dependency injection for enrichment — the caller supplies a `FacetEnricher` (Sourcify, Etherscan, local files, nothing); the package just threads it through
 - Minimal runtime dependencies — only `@noble/hashes` (for keccak_256)
 
 ## Public API surface
