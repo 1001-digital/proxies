@@ -1,64 +1,87 @@
 import { buildCompositeAbi } from './abi'
-import { enrichFacets } from './enrich'
-import { detectAndFetchFacets } from './loupe'
+import { detectProxy } from './detect'
+import { enrichTargets } from './enrich'
 import type {
-  Diamond,
-  DiamondsClient,
-  DiamondsConfig,
-  FacetEnricher,
+  FetchProxyOptions,
+  Proxy,
+  ProxiesClient,
+  ProxiesConfig,
+  TargetEnricher,
 } from './types'
 
 /**
- * Create a diamond inspection client.
+ * Create a proxy inspection client.
  *
  * ```ts
- * const diamonds = createDiamonds()
- * const result = await diamonds.fetch('https://rpc…', '0x…')
- * if (result) console.log(result.facets)
+ * const proxies = createProxies()
+ * const result = await proxies.fetch('https://rpc…', '0x…')
+ * if (result) console.log(result.pattern, result.targets)
  * ```
  *
- * Pass `config.enrich` to populate each facet's ABI from any source
- * (Sourcify, Etherscan, a local cache). Omit it to get raw facets with
- * address + selectors only.
+ * Pass `config.enrich` to populate each target's ABI from any source
+ * (Sourcify, Etherscan, a local cache). Omit it to get raw targets with
+ * address + (optional) selectors only.
  */
-export function createDiamonds(config: DiamondsConfig = {}): DiamondsClient {
+export function createProxies(config: ProxiesConfig = {}): ProxiesClient {
   const fetchFn = config.fetch ?? globalThis.fetch
   const defaultEnrich = config.enrich ?? null
 
   return {
     detect(rpc, address) {
-      return detectAndFetchFacets(rpc, address, fetchFn)
+      return detectProxy(rpc, address, fetchFn)
     },
 
-    async fetch(rpc, address, options): Promise<Diamond | null> {
-      const raw = await detectAndFetchFacets(rpc, address, fetchFn)
+    async fetch(rpc, address, options): Promise<Proxy | null> {
+      const raw = await detectProxy(rpc, address, fetchFn)
       if (!raw) return null
 
-      const enricher: FacetEnricher | null = options?.enrich === false
+      const enricher: TargetEnricher | null = options?.enrich === false
         ? null
         : (options?.enrich ?? defaultEnrich)
 
-      const facets = await enrichFacets(raw, enricher)
+      const targets = await enrichTargets(raw.targets, enricher)
 
-      const abiLayers = facets
-        .map(f => f.abi)
+      const abiLayers = targets
+        .map(t => t.abi)
         .filter((a): a is unknown[] => a !== undefined)
       const compositeAbi = abiLayers.length > 0
         ? buildCompositeAbi(abiLayers)
         : undefined
 
-      return compositeAbi ? { facets, compositeAbi } : { facets }
+      const proxy: Proxy = { pattern: raw.pattern, targets }
+      if (raw.beacon) proxy.beacon = raw.beacon
+      if (raw.admin) proxy.admin = raw.admin
+      if (compositeAbi) proxy.compositeAbi = compositeAbi
+      return proxy
     },
   }
 }
 
-// ── Standalone primitives ──
+// ── Detection ──
 
-export { detectAndFetchFacets } from './loupe'
-export { enrichFacets } from './enrich'
-export { decodeFacets } from './decode'
-export { computeSelector, canonicalSignature } from './selector'
+export { detectProxy } from './detect'
+export { detectDiamond } from './patterns/diamond'
+export { detectEip1967 } from './patterns/eip1967'
+export { detectEip1967Beacon } from './patterns/eip1967-beacon'
+export { detectEip1822 } from './patterns/eip1822'
+export { detectEip1167 } from './patterns/eip1167'
+export { detectGnosisSafe } from './patterns/safe'
+export { detectEip897 } from './patterns/eip897'
+
+// ── Composition ──
+
+export { enrichTargets } from './enrich'
 export { filterAbiBySelectors, buildCompositeAbi } from './abi'
+export { mergeNatspecDocs } from './natspec'
+
+// ── Utilities ──
+
+export { decodeFacets, parseAddress } from './decode'
+export { computeSelector, canonicalSignature } from './selector'
+
+// ── RPC ──
+
+export { ethCall, ethGetStorageAt, ethGetCode } from './rpc'
 
 // ── Constants ──
 
@@ -66,24 +89,35 @@ export {
   SUPPORTS_INTERFACE_SELECTOR,
   DIAMOND_LOUPE_INTERFACE_ID,
   FACETS_SELECTOR,
+  IMPLEMENTATION_SELECTOR,
+  EIP1967_IMPL_SLOT,
+  EIP1967_BEACON_SLOT,
+  EIP1967_ADMIN_SLOT,
+  EIP1822_PROXIABLE_SLOT,
+  EIP1167_BYTECODE_PREFIX,
+  EIP1167_BYTECODE_SUFFIX,
   ZERO_ADDRESS,
 } from './constants'
 
 // ── Errors ──
 
-export { DiamondsError, DiamondsDecodeError } from './errors'
+export { ProxiesError, ProxiesDecodeError, ProxiesFetchError } from './errors'
 
 // ── Types ──
 
 export type {
-  DiamondsConfig,
-  DiamondsClient,
-  FetchDiamondOptions,
-  RawFacet,
-  FacetInfo,
-  FacetEnrichment,
-  FacetEnricher,
-  Diamond,
+  ProxiesConfig,
+  ProxiesClient,
+  FetchProxyOptions,
+  ProxyPattern,
+  ResolvedTarget,
+  RawProxy,
+  EnrichedTarget,
+  Proxy,
+  TargetEnrichment,
+  TargetEnricher,
   AbiParam,
   AbiFunctionLike,
 } from './types'
+
+export type { DecodedFacet } from './decode'

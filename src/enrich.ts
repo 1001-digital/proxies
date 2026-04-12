@@ -1,33 +1,36 @@
 import { filterAbiBySelectors } from './abi'
-import type { FacetEnricher, FacetInfo, RawFacet } from './types'
+import type { EnrichedTarget, ResolvedTarget, TargetEnricher } from './types'
 
 /**
- * Apply an enricher to each raw facet, producing a `FacetInfo[]`.
+ * Apply an enricher to each resolved target, producing an `EnrichedTarget[]`.
  *
- * Enricher errors are swallowed per-facet — one bad fetch does not fail the
- * whole diamond. Pass `null` to skip enrichment entirely (facets will carry
- * only `address` + `selectors`).
+ * Enricher errors are swallowed per-target — one bad fetch does not fail the
+ * whole resolution. Pass `null` to skip enrichment entirely (targets will
+ * carry only `address` + `selectors`).
  *
- * The returned ABIs are filtered to the selectors actually mounted on each
- * facet; a verified facet that declares extra functions won't leak them.
+ * When a target has `selectors` defined (diamond facets), the returned ABI is
+ * filtered to those selectors. When `selectors` is undefined (any single-impl
+ * proxy pattern), the full implementation ABI is passed through untouched.
  */
-export async function enrichFacets(
-  rawFacets: RawFacet[],
-  enrich: FacetEnricher | null,
-): Promise<FacetInfo[]> {
+export async function enrichTargets(
+  targets: ResolvedTarget[],
+  enrich: TargetEnricher | null,
+): Promise<EnrichedTarget[]> {
   const enrichments = enrich
     ? await Promise.all(
-        rawFacets.map(rf => enrich(rf.facetAddress).catch(() => null)),
+        targets.map(t => enrich(t.address).catch(() => null)),
       )
-    : rawFacets.map(() => null)
+    : targets.map(() => null)
 
-  return rawFacets.map((rf, i) => {
+  return targets.map((t, i) => {
     const src = enrichments[i]
-    const info: FacetInfo = {
-      address: rf.facetAddress,
-      selectors: rf.functionSelectors,
+    const info: EnrichedTarget = { address: t.address }
+    if (t.selectors !== undefined) info.selectors = t.selectors
+    if (src?.abi) {
+      info.abi = t.selectors !== undefined
+        ? filterAbiBySelectors(src.abi, t.selectors)
+        : src.abi
     }
-    if (src?.abi) info.abi = filterAbiBySelectors(src.abi, rf.functionSelectors)
     return info
   })
 }

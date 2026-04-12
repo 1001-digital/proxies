@@ -3,14 +3,15 @@ import {
   FACETS_SELECTOR,
   SUPPORTS_INTERFACE_SELECTOR,
   ZERO_ADDRESS,
-} from './constants'
-import { decodeFacets, parseBool } from './decode'
-import { ethCall } from './rpc'
-import type { RawFacet } from './types'
+} from '../constants'
+import { decodeFacets, parseBool } from '../decode'
+import { ethCall } from '../rpc'
+import type { DecodedFacet } from '../decode'
+import type { RawProxy, ResolvedTarget } from '../types'
 
 /**
- * Detect whether a contract implements ERC-2535 (Diamond) and return its facets.
- * Returns `null` if not a diamond. Returns a non-empty array of facets otherwise.
+ * Detect whether a contract implements ERC-2535 (Diamond) and return its
+ * facets as a {@link RawProxy}. Returns `null` if not a diamond.
  *
  * Strategy:
  *   1. Try ERC-165 `supportsInterface(0x48e2b093)`.
@@ -22,11 +23,11 @@ import type { RawFacet } from './types'
  *
  * Zero-address facets (deleted selectors) are filtered out of the result.
  */
-export async function detectAndFetchFacets(
+export async function detectDiamond(
   rpc: string,
   address: string,
   fetchFn: typeof globalThis.fetch,
-): Promise<RawFacet[] | null> {
+): Promise<RawProxy | null> {
   const calldata = SUPPORTS_INTERFACE_SELECTOR
     + DIAMOND_LOUPE_INTERFACE_ID.slice(2).padEnd(64, '0')
 
@@ -51,7 +52,7 @@ async function tryFacets(
   rpc: string,
   address: string,
   fetchFn: typeof globalThis.fetch,
-): Promise<RawFacet[] | null> {
+): Promise<RawProxy | null> {
   let res: string
   try {
     res = await ethCall(rpc, address, FACETS_SELECTOR, fetchFn)
@@ -61,13 +62,16 @@ async function tryFacets(
 
   if (res === '0x' || res.length < MIN_FACETS_PAYLOAD_LEN) return null
 
-  let facets: RawFacet[]
+  let facets: DecodedFacet[]
   try {
     facets = decodeFacets(res)
   } catch {
     return null
   }
 
-  const live = facets.filter(f => f.facetAddress !== ZERO_ADDRESS)
-  return live.length > 0 ? live : null
+  const targets: ResolvedTarget[] = facets
+    .filter(f => f.facetAddress !== ZERO_ADDRESS)
+    .map(f => ({ address: f.facetAddress, selectors: f.functionSelectors }))
+
+  return targets.length > 0 ? { pattern: 'eip-2535-diamond', targets } : null
 }

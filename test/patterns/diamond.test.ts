@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { detectAndFetchFacets } from '../src'
-import { encodeBool, encodeFacets, getCalldata, rpcEnvelope } from './helpers/abi'
-import { createMockFetch } from './helpers/mock-fetch'
+import { detectDiamond } from '../../src'
+import { encodeBool, encodeFacets, getCalldata, rpcEnvelope, rpcRevert } from '../helpers/abi'
+import { createMockFetch } from '../helpers/mock-fetch'
 
 const RPC = 'https://rpc.test'
 const ADDR = '0x1111111111111111111111111111111111111111'
 const FACET = '0x' + 'aa'.repeat(20)
 
-describe('detectAndFetchFacets', () => {
+describe('detectDiamond', () => {
   it('returns null when supportsInterface returns false', async () => {
     const fetchFn = createMockFetch([
       {
@@ -15,10 +15,10 @@ describe('detectAndFetchFacets', () => {
         response: { status: 200, body: rpcEnvelope(encodeBool(false)) },
       },
     ])
-    expect(await detectAndFetchFacets(RPC, ADDR, fetchFn)).toBeNull()
+    expect(await detectDiamond(RPC, ADDR, fetchFn)).toBeNull()
   })
 
-  it('returns facets when supportsInterface returns true', async () => {
+  it('returns a RawProxy when supportsInterface returns true', async () => {
     const facetsReturn = encodeFacets([{ address: FACET, selectors: ['0x18160ddd'] }])
     const fetchFn = createMockFetch([
       {
@@ -30,8 +30,11 @@ describe('detectAndFetchFacets', () => {
         response: { status: 200, body: rpcEnvelope(facetsReturn) },
       },
     ])
-    const facets = await detectAndFetchFacets(RPC, ADDR, fetchFn)
-    expect(facets).toEqual([{ facetAddress: FACET, functionSelectors: ['0x18160ddd'] }])
+    const result = await detectDiamond(RPC, ADDR, fetchFn)
+    expect(result).toEqual({
+      pattern: 'eip-2535-diamond',
+      targets: [{ address: FACET, selectors: ['0x18160ddd'] }],
+    })
   })
 
   it('falls through to facets() when supportsInterface response is malformed', async () => {
@@ -47,8 +50,8 @@ describe('detectAndFetchFacets', () => {
         response: { status: 200, body: rpcEnvelope(facetsReturn) },
       },
     ])
-    const facets = await detectAndFetchFacets(RPC, ADDR, fetchFn)
-    expect(facets).toHaveLength(1)
+    const result = await detectDiamond(RPC, ADDR, fetchFn)
+    expect(result?.targets).toHaveLength(1)
   })
 
   it('falls through to facets() when supportsInterface reverts', async () => {
@@ -56,16 +59,15 @@ describe('detectAndFetchFacets', () => {
     const fetchFn = createMockFetch([
       {
         match: (_, body) => getCalldata(body).startsWith('0x01ffc9a7'),
-        // JSON-RPC error → ethCall throws → loupe catches and falls through
-        response: { status: 200, body: { jsonrpc: '2.0', id: 1, error: { message: 'revert' } } },
+        response: { status: 200, body: rpcRevert() },
       },
       {
         match: (_, body) => getCalldata(body).startsWith('0x7a0ed627'),
         response: { status: 200, body: rpcEnvelope(facetsReturn) },
       },
     ])
-    const facets = await detectAndFetchFacets(RPC, ADDR, fetchFn)
-    expect(facets).toHaveLength(1)
+    const result = await detectDiamond(RPC, ADDR, fetchFn)
+    expect(result?.targets).toHaveLength(1)
   })
 
   it('returns null when facets() reverts', async () => {
@@ -76,10 +78,10 @@ describe('detectAndFetchFacets', () => {
       },
       {
         match: (_, body) => getCalldata(body).startsWith('0x7a0ed627'),
-        response: { status: 200, body: { jsonrpc: '2.0', id: 1, error: { message: 'revert' } } },
+        response: { status: 200, body: rpcRevert() },
       },
     ])
-    expect(await detectAndFetchFacets(RPC, ADDR, fetchFn)).toBeNull()
+    expect(await detectDiamond(RPC, ADDR, fetchFn)).toBeNull()
   })
 
   it('returns null for empty facets() (all zero-address)', async () => {
@@ -96,7 +98,7 @@ describe('detectAndFetchFacets', () => {
         response: { status: 200, body: rpcEnvelope(facetsReturn) },
       },
     ])
-    expect(await detectAndFetchFacets(RPC, ADDR, fetchFn)).toBeNull()
+    expect(await detectDiamond(RPC, ADDR, fetchFn)).toBeNull()
   })
 
   it('filters zero-address facets from the result', async () => {
@@ -114,9 +116,9 @@ describe('detectAndFetchFacets', () => {
         response: { status: 200, body: rpcEnvelope(facetsReturn) },
       },
     ])
-    const facets = await detectAndFetchFacets(RPC, ADDR, fetchFn)
-    expect(facets).toHaveLength(1)
-    expect(facets![0].facetAddress).toBe(FACET)
+    const result = await detectDiamond(RPC, ADDR, fetchFn)
+    expect(result?.targets).toHaveLength(1)
+    expect(result?.targets[0].address).toBe(FACET)
   })
 
   it('returns null for malformed facets() payload', async () => {
@@ -131,6 +133,6 @@ describe('detectAndFetchFacets', () => {
         response: { status: 200, body: rpcEnvelope('0x' + '0'.repeat(62) + '20' + '0'.repeat(62) + '05') },
       },
     ])
-    expect(await detectAndFetchFacets(RPC, ADDR, fetchFn)).toBeNull()
+    expect(await detectDiamond(RPC, ADDR, fetchFn)).toBeNull()
   })
 })

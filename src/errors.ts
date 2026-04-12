@@ -2,23 +2,23 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export class DiamondsError extends Error {
+export class ProxiesError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options)
-    this.name = 'DiamondsError'
+    this.name = 'ProxiesError'
   }
 }
 
 /** Raised when the on-chain `facets()` return value cannot be decoded. */
-export class DiamondsDecodeError extends DiamondsError {
+export class ProxiesDecodeError extends ProxiesError {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options)
-    this.name = 'DiamondsDecodeError'
+    this.name = 'ProxiesDecodeError'
   }
 }
 
 /** Raised when a JSON-RPC request fails at the transport level. */
-export class DiamondsFetchError extends DiamondsError {
+export class ProxiesFetchError extends ProxiesError {
   public readonly status: number
 
   constructor(
@@ -27,7 +27,7 @@ export class DiamondsFetchError extends DiamondsError {
     options?: ErrorOptions,
   ) {
     super(message, options)
-    this.name = 'DiamondsFetchError'
+    this.name = 'ProxiesFetchError'
     this.status = details.status
   }
 }

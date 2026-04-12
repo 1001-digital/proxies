@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decodeFacets, DiamondsDecodeError } from '../src'
+import { decodeFacets, ProxiesDecodeError } from '../src'
 import { word as w, selSlot as selWord, blob } from './helpers/abi'
 
 describe('decodeFacets', () => {
@@ -57,9 +57,9 @@ describe('decodeFacets', () => {
     expect(decodeFacets(payload)).toEqual([])
   })
 
-  it('throws DiamondsDecodeError on out-of-bounds access', () => {
+  it('throws ProxiesDecodeError on out-of-bounds access', () => {
     const payload = blob(w(0x20), w(5)) // claims 5 facets but gives nothing
-    expect(() => decodeFacets(payload)).toThrow(DiamondsDecodeError)
+    expect(() => decodeFacets(payload)).toThrow(ProxiesDecodeError)
     expect(() => decodeFacets(payload)).toThrow(/malformed/)
   })
 

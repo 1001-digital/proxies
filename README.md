@@ -1,45 +1,46 @@
-# @1001-digital/diamonds
+# @1001-digital/proxies
 
-ERC-2535 Diamond inspection primitives for TypeScript — detect facets, decode the loupe, build composite ABIs.
+Ethereum proxy pattern detection primitives for TypeScript — ERC-2535 diamonds, EIP-1967, EIP-1167, beacon, Safe, EIP-1822, EIP-897.
 
-Narrow on purpose: this package knows ERC-2535, selectors, and ABIs.
-Anything richer — documentation, verification sources, per-facet metadata —
-is the consumer's concern. Bring your own enricher.
+Given a contract address, resolve where the real code lives: one implementation (plain proxy) or N facets (diamond). Uniform detect → enrich → compose pipeline across all patterns.
+
+Narrow on purpose: this package knows proxy conventions, selectors, and ABIs. Anything richer — Sourcify, NatSpec, repository metadata — is the consumer's concern. Bring your own enricher.
 
 ## Install
 
 ```bash
-pnpm add @1001-digital/diamonds
+pnpm add @1001-digital/proxies
 ```
 
 ## Usage
 
-### Fetch a diamond
+### Detect + fetch a proxy
 
 ```ts
-import { createDiamonds } from '@1001-digital/diamonds'
+import { createProxies } from '@1001-digital/proxies'
 
-const diamonds = createDiamonds()
+const proxies = createProxies()
 
-const result = await diamonds.fetch(
+const result = await proxies.fetch(
   'https://eth.llamarpc.com',
-  '0xDiamondAddress…',
+  '0xProxyAddress…',
 )
 
 if (result) {
-  console.log(result.facets)         // [{ address, selectors }, …]
+  console.log(result.pattern)        // 'eip-1967' | 'eip-2535-diamond' | …
+  console.log(result.targets)        // [{ address, selectors?, abi? }, …]
   console.log(result.compositeAbi)   // undefined — no enricher configured
 }
 ```
 
 ### Enrich with Sourcify (or anything else)
 
-The enricher returns each facet's ABI. Anything richer (sources, bytecode,
+The enricher returns each target's ABI. Anything richer (sources, bytecode,
 documentation, …) is the consumer's concern — see *Detect and do your own
 enrichment* below.
 
 ```ts
-import { createDiamonds } from '@1001-digital/diamonds'
+import { createProxies } from '@1001-digital/proxies'
 
 async function sourcifyAbi(address: string) {
   const res = await fetch(
@@ -50,49 +51,49 @@ async function sourcifyAbi(address: string) {
   return { abi }
 }
 
-const diamonds = createDiamonds({ enrich: sourcifyAbi })
+const proxies = createProxies({ enrich: sourcifyAbi })
 
-const result = await diamonds.fetch(
+const result = await proxies.fetch(
   'https://eth.llamarpc.com',
-  '0xDiamondAddress…',
+  '0xProxyAddress…',
 )
 
 if (result) {
-  console.log(result.facets[0].abi)  // ABI filtered to the facet's selectors
-  console.log(result.compositeAbi)   // all facet ABIs deduped by selector
+  console.log(result.targets[0].abi) // ABI (filtered to selectors for diamonds, full for plain proxies)
+  console.log(result.compositeAbi)   // all target ABIs deduped by selector
 }
 ```
 
 ### Detect and do your own enrichment
 
-For richer per-facet metadata, use `detect` and own the enrichment step
+For richer per-target metadata, use `detect` and own the enrichment step
 end-to-end. `filterAbiBySelectors` and `buildCompositeAbi` remain useful
 primitives.
 
 ```ts
 import {
-  createDiamonds,
+  createProxies,
   filterAbiBySelectors,
   buildCompositeAbi,
-} from '@1001-digital/diamonds'
+} from '@1001-digital/proxies'
 
-const diamonds = createDiamonds()
-const raw = await diamonds.detect(rpc, address)
+const proxies = createProxies()
+const raw = await proxies.detect(rpc, address)
 
 if (raw) {
-  const enriched = await Promise.all(raw.map(async rf => {
-    const src = await mySource(rf.facetAddress)
+  const enriched = await Promise.all(raw.targets.map(async t => {
+    const src = await mySource(t.address)
     return {
-      address: rf.facetAddress,
-      selectors: rf.functionSelectors,
-      abi: src?.abi ? filterAbiBySelectors(src.abi, rf.functionSelectors) : undefined,
-      // …plus whatever else your source provides
+      ...t,
+      abi: src?.abi && t.selectors
+        ? filterAbiBySelectors(src.abi, t.selectors)
+        : src?.abi,
       metadata: src?.metadata,
     }
   }))
 
   const compositeAbi = buildCompositeAbi(
-    enriched.map(f => f.abi).filter((a): a is unknown[] => !!a),
+    enriched.map(t => t.abi).filter((a): a is unknown[] => !!a),
   )
 }
 ```
@@ -103,14 +104,17 @@ All low-level utilities are exported directly — use them without the factory:
 
 ```ts
 import {
+  detectProxy,
+  detectDiamond,
+  detectEip1967,
   decodeFacets,
   computeSelector,
   canonicalSignature,
   filterAbiBySelectors,
   buildCompositeAbi,
-  detectAndFetchFacets,
-  enrichFacets,
-} from '@1001-digital/diamonds'
+  enrichTargets,
+  mergeNatspecDocs,
+} from '@1001-digital/proxies'
 
 decodeFacets('0x…')                            // parse a facets() return value
 computeSelector('transfer(address,uint256)')   // '0xa9059cbb'
@@ -119,96 +123,154 @@ canonicalSignature({ type: 'function', name: 'transfer', inputs: [/*…*/] })
 
 ## API
 
-### `createDiamonds(config?)`
+### `createProxies(config?)`
 
-Creates a diamonds client.
+Creates a proxies client.
 
 **Config options:**
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enrich` | `FacetEnricher` | — | Default per-facet enricher. Called with each facet address; return `{ abi? }` or `null`. Errors are swallowed per-facet. |
+| `enrich` | `TargetEnricher` | — | Default per-target enricher. Called with each target address; return `{ abi? }` or `null`. Errors are swallowed per-target. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Custom fetch function. |
 
-**Returns** a `DiamondsClient` with:
+**Returns** a `ProxiesClient` with:
 
-- **`detect(rpc, address)`** — `Promise<RawFacet[] | null>`. On-chain probe only.
-- **`fetch(rpc, address, options?)`** — `Promise<Diamond | null>`. Detect, enrich, and compose.
+- **`detect(rpc, address)`** — `Promise<RawProxy | null>`. On-chain probe only.
+- **`fetch(rpc, address, options?)`** — `Promise<Proxy | null>`. Detect, enrich, and compose.
   - `options.enrich` — per-call enricher (overrides config-level)
   - `options.enrich = false` — skip enrichment for this call
 
-### Standalone functions
+### Detection
 
-- **`detectAndFetchFacets(rpc, address, fetchFn)`** — `null | RawFacet[]`. Uses ERC-165 first, then falls back to a direct `facets()` probe.
-- **`enrichFacets(rawFacets, enricher | null)`** — applies the enricher to each facet; ABIs are filtered to live selectors.
-- **`decodeFacets(hex)`** — pure; decodes the ABI-encoded `(address, bytes4[])[]` return value.
+- **`detectProxy(rpc, address, fetchFn)`** — tries all patterns in priority order (`diamond → 1967 → 1967-beacon → 1822 → 1167 → safe → 897`), returns the first match.
+- **`detectDiamond`** — ERC-165 probe, then `facets()` fallback.
+- **`detectEip1967`** — reads impl slot `0x3608…3bc3`; optionally admin slot.
+- **`detectEip1967Beacon`** — reads beacon slot `0xa3f0…750d`, then `implementation()` on the beacon.
+- **`detectEip1822`** — reads PROXIABLE slot `0xc5f1…f8e2`.
+- **`detectEip1167`** — `eth_getCode`, matches minimal proxy bytecode (`363d3d…bf3`).
+- **`detectGnosisSafe`** — reads storage slot 0.
+- **`detectEip897`** — calls `implementation()` as a last resort.
+
+Each detector returns `null` if the pattern doesn't match; otherwise a `RawProxy`.
+
+### Composition
+
+- **`enrichTargets(targets, enricher | null)`** — applies the enricher to each target; ABIs are filtered to live selectors for diamonds, passed through for plain proxies.
+- **`buildCompositeAbi(abis)`** — pure; dedupes functions/events/errors across ABIs (first-wins).
+- **`mergeNatspecDocs(...docs)`** — pure; shallow-merges NatSpec `userdoc` / `devdoc` across multiple targets.
+
+### Utilities
+
+- **`decodeFacets(hex)`** — pure; decodes `(address, bytes4[])[]` loupe return.
 - **`computeSelector(signature)`** — pure; keccak256-based 4-byte selector.
 - **`canonicalSignature(abiEntry)`** — pure; normalizes tuples/arrays into a signature string.
 - **`filterAbiBySelectors(abi, selectors)`** — pure; keeps non-functions, filters functions by selector.
-- **`buildCompositeAbi(abis)`** — pure; dedupes functions/events/errors across ABIs (first-wins).
+- **`ethCall`**, **`ethGetStorageAt`**, **`ethGetCode`** — minimal JSON-RPC helpers.
 
 ### Constants
 
 ```ts
-SUPPORTS_INTERFACE_SELECTOR  // '0x01ffc9a7'
-DIAMOND_LOUPE_INTERFACE_ID   // '0x48e2b093'
-FACETS_SELECTOR              // '0x7a0ed627'
-ZERO_ADDRESS                 // '0x00…00'
+SUPPORTS_INTERFACE_SELECTOR      // '0x01ffc9a7'
+DIAMOND_LOUPE_INTERFACE_ID       // '0x48e2b093'
+FACETS_SELECTOR                  // '0x7a0ed627'
+IMPLEMENTATION_SELECTOR          // '0x5c60da1b'
+EIP1967_IMPL_SLOT
+EIP1967_BEACON_SLOT
+EIP1967_ADMIN_SLOT
+EIP1822_PROXIABLE_SLOT
+EIP1167_BYTECODE_PREFIX
+EIP1167_BYTECODE_SUFFIX
+ZERO_ADDRESS
 ```
 
 ### Errors
 
-- **`DiamondsError`** — base class.
-- **`DiamondsDecodeError`** — malformed `facets()` return value.
+- **`ProxiesError`** — base class.
+- **`ProxiesDecodeError`** — malformed `facets()` return.
+- **`ProxiesFetchError`** — JSON-RPC transport error.
 
 The client's `detect` and `fetch` methods swallow RPC-layer errors and return
-`null`; only `decodeFacets` (called directly) can throw `DiamondsDecodeError`
+`null`; only `decodeFacets` (called directly) can throw `ProxiesDecodeError`
 on malformed input.
 
 ## Shapes
 
-### `RawFacet`
+### `ProxyPattern`
 
 ```ts
-{ facetAddress: string; functionSelectors: string[] }
+type ProxyPattern =
+  | 'eip-2535-diamond'
+  | 'eip-1967'
+  | 'eip-1967-beacon'
+  | 'eip-1822'
+  | 'eip-1167'
+  | 'gnosis-safe'
+  | 'eip-897'
 ```
 
-### `FacetInfo`
+### `ResolvedTarget`
 
 ```ts
 {
   address: string
-  selectors: string[]
-  abi?: unknown[]   // filtered to live selectors
+  // undefined = all selectors route here (plain proxy)
+  // defined = diamond facet selector scope
+  selectors?: string[]
 }
 ```
 
-### `Diamond`
+### `RawProxy`
 
 ```ts
 {
-  facets: FacetInfo[]
+  pattern: ProxyPattern
+  targets: ResolvedTarget[]   // 1 entry except for diamonds
+  beacon?: string             // only for eip-1967-beacon
+  admin?: string              // only for eip-1967 when admin slot is set
+}
+```
+
+### `EnrichedTarget`
+
+```ts
+{
+  address: string
+  selectors?: string[]
+  abi?: unknown[]
+}
+```
+
+### `Proxy`
+
+```ts
+{
+  pattern: ProxyPattern
+  targets: EnrichedTarget[]
+  beacon?: string
+  admin?: string
   compositeAbi?: unknown[]   // deduped by selector
 }
 ```
 
-### `FacetEnrichment`
+### `TargetEnrichment`
 
 ```ts
 { abi?: unknown[] }
 ```
 
-### `FacetEnricher`
+### `TargetEnricher`
 
 ```ts
-type FacetEnricher = (address: string) => Promise<FacetEnrichment | null>
+type TargetEnricher = (address: string) => Promise<TargetEnrichment | null>
 ```
 
 ## Design notes
 
-- **Narrow scope** — the package composes ABIs; it takes no opinion on documentation formats or metadata shapes.
+- **Narrow scope** — detects patterns and composes ABIs; no opinion on documentation formats or richer per-target metadata.
 - **Dependency-injected enrichment** — the factory wires I/O when you ask; the primitives work offline.
-- **First-wins ABI dedup** — pass the most authoritative ABI first (e.g. main diamond → facets).
+- **First-wins ABI dedup** — pass the most authoritative ABI first (e.g. main contract → impl, or main diamond → facets).
+- **Single-hop resolution** — if a resolved implementation is itself a proxy, `detectProxy` does not recurse. Beacon stays supported as a defined two-step pattern.
 - **Minimal runtime deps** — only `@noble/hashes` for keccak256.
 
 ## License

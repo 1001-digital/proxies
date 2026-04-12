@@ -1,17 +1,28 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  createDiamonds,
+  createProxies,
   DIAMOND_LOUPE_INTERFACE_ID,
-  SUPPORTS_INTERFACE_SELECTOR,
+  EIP1967_ADMIN_SLOT,
+  EIP1967_IMPL_SLOT,
   FACETS_SELECTOR,
+  SUPPORTS_INTERFACE_SELECTOR,
   ZERO_ADDRESS,
 } from '../src'
-import { encodeBool, encodeFacets, getCalldata, rpcEnvelope } from './helpers/abi'
+import {
+  encodeAddress,
+  encodeBool,
+  encodeFacets,
+  getCalldata,
+  getMethod,
+  getStorageSlot,
+  rpcEnvelope,
+} from './helpers/abi'
 import { createMockFetch } from './helpers/mock-fetch'
 
 const RPC = 'https://rpc.test'
 const ADDR = '0x1111111111111111111111111111111111111111'
 const FACET = '0x' + 'aa'.repeat(20)
+const IMPL = '0x' + 'cc'.repeat(20)
 
 describe('constants', () => {
   it('exposes the canonical ERC-2535 / ERC-165 selectors', () => {
@@ -22,7 +33,7 @@ describe('constants', () => {
   })
 })
 
-describe('createDiamonds', () => {
+describe('createProxies', () => {
   function setupDiamondFetch(extraRoutes: Parameters<typeof createMockFetch>[0] = []) {
     const facetsReturn = encodeFacets([{ address: FACET, selectors: ['0x18160ddd'] }])
     return createMockFetch([
@@ -38,51 +49,94 @@ describe('createDiamonds', () => {
     ])
   }
 
-  it('detect returns null for non-diamonds', async () => {
+  function setup1967Fetch() {
+    return createMockFetch([
+      {
+        match: (_, body) => getCalldata(body).startsWith(SUPPORTS_INTERFACE_SELECTOR),
+        response: { status: 200, body: rpcEnvelope(encodeBool(false)) },
+      },
+      {
+        match: (_, body) =>
+          getMethod(body) === 'eth_getStorageAt'
+          && getStorageSlot(body) === EIP1967_IMPL_SLOT,
+        response: { status: 200, body: rpcEnvelope(encodeAddress(IMPL)) },
+      },
+      {
+        match: (_, body) =>
+          getMethod(body) === 'eth_getStorageAt'
+          && getStorageSlot(body) === EIP1967_ADMIN_SLOT,
+        response: { status: 200, body: rpcEnvelope(encodeAddress('0x' + '00'.repeat(20))) },
+      },
+    ])
+  }
+
+  it('detect returns null for non-proxies', async () => {
     const fetchFn = createMockFetch([
       {
         match: (_, body) => getCalldata(body).startsWith(SUPPORTS_INTERFACE_SELECTOR),
         response: { status: 200, body: rpcEnvelope(encodeBool(false)) },
       },
-    ])
-    const diamonds = createDiamonds({ fetch: fetchFn })
-    expect(await diamonds.detect(RPC, ADDR)).toBeNull()
-  })
-
-  it('detect returns raw facets for diamonds', async () => {
-    const diamonds = createDiamonds({ fetch: setupDiamondFetch() })
-    const facets = await diamonds.detect(RPC, ADDR)
-    expect(facets).toEqual([{ facetAddress: FACET, functionSelectors: ['0x18160ddd'] }])
-  })
-
-  it('fetch returns null for non-diamonds', async () => {
-    const fetchFn = createMockFetch([
       {
-        match: (_, body) => getCalldata(body).startsWith(SUPPORTS_INTERFACE_SELECTOR),
-        response: { status: 200, body: rpcEnvelope(encodeBool(false)) },
+        match: (_, body) => getMethod(body) === 'eth_getStorageAt',
+        response: { status: 200, body: rpcEnvelope(encodeAddress('0x' + '00'.repeat(20))) },
+      },
+      {
+        match: (_, body) => getMethod(body) === 'eth_getCode',
+        response: { status: 200, body: rpcEnvelope('0x') },
       },
     ])
-    const diamonds = createDiamonds({ fetch: fetchFn })
-    expect(await diamonds.fetch(RPC, ADDR)).toBeNull()
+    const proxies = createProxies({ fetch: fetchFn })
+    expect(await proxies.detect(RPC, ADDR)).toBeNull()
   })
 
-  it('fetch without an enricher returns address+selectors only', async () => {
-    const diamonds = createDiamonds({ fetch: setupDiamondFetch() })
-    const result = await diamonds.fetch(RPC, ADDR)
+  it('detect returns a RawProxy for diamonds', async () => {
+    const proxies = createProxies({ fetch: setupDiamondFetch() })
+    const raw = await proxies.detect(RPC, ADDR)
+    expect(raw?.pattern).toBe('eip-2535-diamond')
+    expect(raw?.targets).toEqual([{ address: FACET, selectors: ['0x18160ddd'] }])
+  })
+
+  it('detect returns a RawProxy for 1967 proxies', async () => {
+    const proxies = createProxies({ fetch: setup1967Fetch() })
+    const raw = await proxies.detect(RPC, ADDR)
+    expect(raw?.pattern).toBe('eip-1967')
+    expect(raw?.targets).toEqual([{ address: IMPL }])
+  })
+
+  it('fetch without an enricher returns address+selectors only (diamond)', async () => {
+    const proxies = createProxies({ fetch: setupDiamondFetch() })
+    const result = await proxies.fetch(RPC, ADDR)
     expect(result).toEqual({
-      facets: [{ address: FACET, selectors: ['0x18160ddd'] }],
+      pattern: 'eip-2535-diamond',
+      targets: [{ address: FACET, selectors: ['0x18160ddd'] }],
     })
   })
 
-  it('uses the config-level enricher by default', async () => {
+  it('fetch uses the config-level enricher by default (diamond)', async () => {
     const enrich = vi.fn(async () => ({
       abi: [{ type: 'function', name: 'totalSupply', inputs: [] }],
     }))
-    const diamonds = createDiamonds({ fetch: setupDiamondFetch(), enrich })
-    const result = await diamonds.fetch(RPC, ADDR)
+    const proxies = createProxies({ fetch: setupDiamondFetch(), enrich })
+    const result = await proxies.fetch(RPC, ADDR)
     expect(enrich).toHaveBeenCalledWith(FACET)
-    expect(result!.facets[0].abi).toHaveLength(1)
+    expect(result!.targets[0].abi).toHaveLength(1)
     expect(result!.compositeAbi).toHaveLength(1)
+  })
+
+  it('fetch passes the full ABI through for a plain proxy (no selector filter)', async () => {
+    const enrich = vi.fn(async () => ({
+      abi: [
+        { type: 'function', name: 'totalSupply', inputs: [] },
+        { type: 'function', name: 'balanceOf', inputs: [{ type: 'address' }] },
+      ],
+    }))
+    const proxies = createProxies({ fetch: setup1967Fetch(), enrich })
+    const result = await proxies.fetch(RPC, ADDR)
+    expect(enrich).toHaveBeenCalledWith(IMPL)
+    expect(result!.pattern).toBe('eip-1967')
+    expect(result!.targets[0].selectors).toBeUndefined()
+    expect(result!.targets[0].abi).toHaveLength(2)
+    expect(result!.compositeAbi).toHaveLength(2)
   })
 
   it('per-call enrich overrides the config default', async () => {
@@ -90,19 +144,19 @@ describe('createDiamonds', () => {
     const callEnrich = vi.fn(async () => ({
       abi: [{ type: 'function', name: 'totalSupply', inputs: [] }],
     }))
-    const diamonds = createDiamonds({ fetch: setupDiamondFetch(), enrich: configEnrich })
-    const result = await diamonds.fetch(RPC, ADDR, { enrich: callEnrich })
+    const proxies = createProxies({ fetch: setupDiamondFetch(), enrich: configEnrich })
+    const result = await proxies.fetch(RPC, ADDR, { enrich: callEnrich })
     expect(configEnrich).not.toHaveBeenCalled()
     expect(callEnrich).toHaveBeenCalledWith(FACET)
-    expect((result!.facets[0].abi as any)[0].name).toBe('totalSupply')
+    expect((result!.targets[0].abi as any)[0].name).toBe('totalSupply')
   })
 
   it('enrich: false disables a config-level enricher for one call', async () => {
     const configEnrich = vi.fn(async () => ({ abi: [{ type: 'fallback' }] }))
-    const diamonds = createDiamonds({ fetch: setupDiamondFetch(), enrich: configEnrich })
-    const result = await diamonds.fetch(RPC, ADDR, { enrich: false })
+    const proxies = createProxies({ fetch: setupDiamondFetch(), enrich: configEnrich })
+    const result = await proxies.fetch(RPC, ADDR, { enrich: false })
     expect(configEnrich).not.toHaveBeenCalled()
-    expect(result!.facets[0].abi).toBeUndefined()
+    expect(result!.targets[0].abi).toBeUndefined()
     expect(result!.compositeAbi).toBeUndefined()
   })
 })
