@@ -6,6 +6,27 @@ Given a contract address, resolve where the real code lives: one implementation 
 
 Narrow on purpose: this package knows proxy conventions, selectors, and ABIs. Anything richer — Sourcify, NatSpec, repository metadata — is the consumer's concern. Bring your own enricher.
 
+## Who this is for
+
+Use this package when you need a small, composable proxy-resolution layer in:
+
+- explorer and indexer backends
+- contract introspection CLIs
+- ABI fetchers and decoding pipelines
+- developer tooling that needs implementation or facet discovery without owning proxy-specific logic
+
+## What this package is not
+
+This package intentionally does not try to be:
+
+- a contract metadata SDK
+- a verification or source-code retrieval client
+- a recursive proxy resolver
+- an upgrade history tracker
+- an opinionated registry or indexing layer
+
+If you need sources, NatSpec, repository metadata, verification status, or custom per-target fields, use `detect()` and own enrichment yourself.
+
 ## Install
 
 ```bash
@@ -153,6 +174,12 @@ Creates a proxies client.
 
 Each detector returns `null` if the pattern doesn't match; otherwise a `RawProxy`.
 
+### Detection tradeoffs
+
+- **First match wins** — detector order is intentional. If a contract could satisfy multiple heuristics, `detectProxy` returns the first supported pattern in priority order.
+- **Single-hop resolution** — if a resolved implementation is itself a proxy, detection stops there. Beacon remains supported as a defined two-step pattern.
+- **Error isolation** — one failed RPC probe does not poison the full detection pipeline.
+
 ### Composition
 
 - **`enrichTargets(targets, enricher | null)`** — applies the enricher to each target; ABIs are filtered to live selectors for diamonds, passed through for plain proxies.
@@ -270,6 +297,12 @@ type TargetEnricher = (address: string) => Promise<TargetEnrichment | null>
 - **First-wins ABI dedup** — pass the most authoritative ABI first (e.g. main contract → impl, or main diamond → facets).
 - **Single-hop resolution** — if a resolved implementation is itself a proxy, `detectProxy` does not recurse. Beacon stays supported as a defined two-step pattern.
 - **Minimal runtime deps** — only `@noble/hashes` for keccak256.
+
+## Example consumers
+
+- An explorer backend can call `detect()` to resolve a proxy and then enrich targets from Sourcify or an internal cache.
+- A CLI can call `fetch()` to print the detected pattern, target addresses, and a composite ABI for downstream decoding.
+- An indexing pipeline can treat `detectProxy → enrichTargets → buildCompositeAbi` as a reusable normalization step before storage.
 
 ## License
 

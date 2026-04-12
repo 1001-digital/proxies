@@ -2,8 +2,6 @@
 
 Proxies SDK (`@1001-digital/proxies`) — Ethereum proxy pattern detection primitives. Covers ERC-2535 diamonds, EIP-1967 (transparent/UUPS + beacon), EIP-1822, EIP-1167 clones, Gnosis Safe, and EIP-897.
 
-Note: the directory is still named `diamonds/` but the package is now `@1001-digital/proxies`. A diamond is one `pattern` value among many.
-
 ## Code style
 
 - TypeScript
