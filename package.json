@@ -1,6 +1,6 @@
 {
   "name": "@1001-digital/proxies",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Ethereum proxy pattern detection primitives — ERC-2535 diamonds, EIP-1967, EIP-1167, beacon, Safe, EIP-1822, EIP-897. Detect, enrich, compose.",
   "license": "MIT",
   "repository": {

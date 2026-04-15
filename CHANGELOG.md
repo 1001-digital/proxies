@@ -1,5 +1,11 @@
 # @1001-digital/proxies
 
+## 0.1.1
+
+### Patch Changes
+
+- [#3](https://github.com/1001-digital/proxies/pull/3) [`7ce944b`](https://github.com/1001-digital/proxies/commit/7ce944b99864314a2e1305904b56d83b82de8d40) Thanks [@yougogirldoteth](https://github.com/yougogirldoteth)! - Tighten Gnosis Safe detection to avoid false positives from arbitrary slot-0
+
 ## 0.1.0
 
 ### Minor Changes
