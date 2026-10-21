@@ -22,6 +22,21 @@ describe('detectEip1167', () => {
     })
   })
 
+  it('matches clones with immutable args appended after the runtime', async () => {
+    const fetchFn = createMockFetch([
+      {
+        match: (_, body) => getMethod(body) === 'eth_getCode',
+        // OpenZeppelin Clones.cloneWithImmutableArgs layout
+        response: { status: 200, body: rpcEnvelope(encodeEip1167Bytecode(IMPL) + 'cd'.repeat(20)) },
+      },
+    ])
+    const result = await detectEip1167(RPC, PROXY, fetchFn)
+    expect(result).toEqual({
+      pattern: 'eip-1167',
+      targets: [{ address: IMPL }],
+    })
+  })
+
   it('returns null when the bytecode length is wrong', async () => {
     const fetchFn = createMockFetch([
       {
