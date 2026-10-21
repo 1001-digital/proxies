@@ -1,5 +1,11 @@
 # @1001-digital/proxies
 
+## 0.2.1
+
+### Patch Changes
+
+- [#7](https://github.com/1001-digital/proxies/pull/7) [`d879fa6`](https://github.com/1001-digital/proxies/commit/d879fa68928960c23a03b484c70ab0adbb2e35f8) Thanks [@0xAkuti](https://github.com/0xAkuti)! - `detectEip1167` now matches clones with immutable args appended after the 45-byte runtime (OpenZeppelin `Clones.cloneWithImmutableArgs`). Previously the exact-length check rejected them.
+
 ## 0.2.0
 
 ### Minor Changes
